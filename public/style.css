@@ -1,0 +1,39 @@
+html, body {
+    height: 100%;
+    overflow: hidden; /* Prevent scrolling while dragging pieces */
+}
+
+#video-container {
+    height: 30vh; /* Top 30% for video */
+    position: relative;
+    border-bottom: 2px solid #444;
+}
+
+#remote-video {
+    height: 100%;
+    max-width: 100%;
+    object-fit: cover;
+}
+
+#local-video {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 100px;
+    height: 150px;
+    object-fit: cover;
+    border: 2px solid white;
+    border-radius: 8px;
+    background: #000;
+}
+
+#status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 5px;
+    pointer-events: none;
+}
