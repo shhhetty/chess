@@ -10,63 +10,61 @@ app.use(express.static('public'));
 const rooms = {};
 
 io.on('connection', (socket) => {
-    console.log('New connection:', socket.id);
-
+    
     // Create Room
-    socket.on('create-room', (roomId, timeControl) => {
-        if (rooms[roomId]) {
-            socket.emit('room-error', 'Room already exists');
-            return;
-        }
+    socket.on('create-room', (data) => {
+        const { roomId, timeControl, name } = data;
+        if (rooms[roomId]) return socket.emit('room-error', 'Room exists');
         
         rooms[roomId] = { 
             timeControl: parseInt(timeControl),
-            players: 1 
+            players: 1,
+            whiteName: name,
+            blackName: null
         };
-        
         socket.join(roomId);
-        // CHANGE: Send color, but don't expect client to render yet
         socket.emit('player-color', 'w'); 
-        // Send init signal
-        socket.emit('game-init', { time: rooms[roomId].timeControl, color: 'w' });
+        socket.emit('game-init', { 
+            time: rooms[roomId].timeControl, 
+            color: 'w',
+            oppName: 'Waiting...'
+        });
     });
 
     // Join Room
-    socket.on('join-room', (roomId) => {
+    socket.on('join-room', (data) => {
+        const { roomId, name } = data;
         const room = io.sockets.adapter.rooms.get(roomId);
-        
-        if (!room || room.size === 0 || !rooms[roomId]) {
-            socket.emit('room-error', 'Room does not exist');
-            return;
-        }
-
-        if (room.size >= 2) {
-            socket.emit('room-error', 'Room is full');
-            return;
-        }
+        if (!room || !rooms[roomId] || room.size >= 2) return socket.emit('room-error', 'Invalid Room');
 
         socket.join(roomId);
         rooms[roomId].players = 2;
+        rooms[roomId].blackName = name;
         
-        // Notify Joiner
+        // Notify Joiner (Black)
         socket.emit('player-color', 'b'); 
-        socket.emit('game-init', { time: rooms[roomId].timeControl, color: 'b' });
+        socket.emit('game-init', { 
+            time: rooms[roomId].timeControl, 
+            color: 'b',
+            oppName: rooms[roomId].whiteName
+        });
 
-        // Notify Creator
-        socket.to(roomId).emit('user-connected', socket.id);
+        // Notify Creator (White) that opponent is ready
+        socket.to(roomId).emit('opponent-joined', { name: name });
     });
 
-    socket.on('move', (data) => {
-        socket.to(data.roomId).emit('move', data.move);
-    });
+    // Video Signaling (Relay)
+    socket.on('signal', (data) => socket.to(data.roomId).emit('signal', data.signal));
 
-    socket.on('signal', (data) => {
-        socket.to(data.roomId).emit('signal', data.signal);
-    });
+    // Game Logic (Relay)
+    socket.on('move', (data) => socket.to(data.roomId).emit('move', data.move));
+    socket.on('timer-sync', (data) => socket.to(data.roomId).emit('timer-update', data));
+    
+    socket.on('resign', (roomId) => io.in(roomId).emit('game-over', { reason: 'resign', loser: socket.id }));
+    
+    socket.on('rematch', (roomId) => io.in(roomId).emit('rematch-start', { time: rooms[roomId].timeControl }));
 
-    socket.on('timer-sync', (data) => {
-        socket.to(data.roomId).emit('timer-update', data);
-    });
+    socket.on('disconnect', () => {});
 });
 
 const PORT = process.env.PORT || 3000;
