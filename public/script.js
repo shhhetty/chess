@@ -35,6 +35,12 @@ function initBoard() {
         draggable: true,
         position: 'start',
         orientation: playerColor === 'w' ? 'white' : 'black',
+        
+        // --- ADD THIS LINE BELOW ---
+        // This tells the app to load images from the internet instead of your local folder
+        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        // ---------------------------
+        
         onDragStart: onDragStart,
         onDrop: onDrop,
         onSnapEnd: onSnapEnd
