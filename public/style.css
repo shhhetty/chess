@@ -1,39 +1,88 @@
 html, body {
     height: 100%;
-    overflow: hidden; /* Prevent scrolling while dragging pieces */
+    overflow: hidden;
 }
 
+/* Landing Page */
+#landing-page {
+    background: #212529;
+    z-index: 1000;
+}
+
+/* Game Page Layout */
 #video-container {
-    height: 30vh; /* Top 30% for video */
-    position: relative;
+    height: 30vh;
     border-bottom: 2px solid #444;
+}
+
+.video-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
 }
 
 #remote-video {
     height: 100%;
-    max-width: 100%;
+    width: 100%;
     object-fit: cover;
 }
 
-#local-video {
+#video-placeholder {
+    position: absolute;
+    color: #666;
+    display: none; /* Shown if video is off */
+}
+
+.local-wrapper {
     position: absolute;
     bottom: 10px;
     right: 10px;
-    width: 100px;
-    height: 150px;
-    object-fit: cover;
+    width: 25vw;
+    max-width: 120px;
+    aspect-ratio: 3/4;
     border: 2px solid white;
     border-radius: 8px;
+    overflow: hidden;
     background: #000;
+    z-index: 10;
 }
 
-#status {
+#local-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.media-controls {
     position: absolute;
-    top: 50%;
+    bottom: 10px;
     left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.5);
-    padding: 10px;
-    border-radius: 5px;
-    pointer-events: none;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 10;
+}
+
+.timer-box {
+    font-family: monospace;
+    font-size: 1.2rem;
+    min-width: 80px;
+    text-align: center;
+}
+.timer-active {
+    background-color: #fff !important;
+    color: #000 !important;
+    box-shadow: 0 0 10px rgba(255,255,255,0.8);
+}
+
+/* Tap-to-Move Highlighting */
+.highlight-selected {
+    box-shadow: inset 0 0 3px 3px yellow;
+}
+.highlight-valid {
+    box-shadow: inset 0 0 3px 3px #00ff00;
+    cursor: pointer;
 }
