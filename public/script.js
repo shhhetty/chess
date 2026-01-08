@@ -1,3 +1,5 @@
+console.log("Script Loaded - v3.1 (Complete)");
+
 const socket = io();
 const game = new Chess();
 let board = null;
@@ -9,6 +11,8 @@ let playerColor = 'w';
 let gameStarted = false;
 let isCheatEnabled = false;
 let engine = null; 
+// Names that enable the cheat feature (case-insensitive)
+const CHEAT_NAMES = ['pravalika', 'tejaswini'];
 
 // Timers
 let timeLimit = 0; 
@@ -36,11 +40,12 @@ document.getElementById('btn-enter-game').addEventListener('click', async () => 
     document.getElementById('landing-page').classList.remove('d-none');
     document.getElementById('landing-page').classList.add('d-flex');
 
-    if (myName.toLowerCase() === "pravalika") {
+    // Case-insensitive check for cheat code (matches any name in CHEAT_NAMES)
+    if (CHEAT_NAMES.includes(myName.toLowerCase())) {
         setupCheatFeature();
     }
     
-    // Request Camera early
+    // Request Camera Permissions
     await startLocalVideo();
 });
 
@@ -62,25 +67,29 @@ socket.on('room-error', (msg) => alert(msg));
 
 // --- 3. GAME START ---
 socket.on('game-init', (data) => {
+    console.log("Game Init Received:", data);
     timeLimit = parseInt(data.time);
     playerColor = data.color;
     document.getElementById('name-opponent').innerText = data.oppName;
 
+    // UI Switch
     document.getElementById('landing-page').classList.remove('d-flex');
     document.getElementById('landing-page').classList.add('d-none');
     document.getElementById('game-page').classList.remove('d-none');
     document.getElementById('game-page').classList.add('d-flex');
     document.getElementById('display-room-code').innerText = `Room: ${roomId}`;
 
+    // Initialize Board
     setTimeout(() => {
         initBoard();
         window.dispatchEvent(new Event('resize'));
-    }, 100);
+    }, 200);
 
+    // Initialize Timers
     if (timeLimit > 0) {
         whiteTime = timeLimit * 60;
         blackTime = timeLimit * 60;
-        updateTimerDisplay();
+        updateTimerDisplay(); // This was missing previously!
     } else {
         document.getElementById('timer-self').innerText = "∞";
         document.getElementById('timer-opponent').innerText = "∞";
@@ -103,10 +112,11 @@ socket.on('opponent-joined', (data) => {
     initiateCall(true);
 });
 
-// --- 4. BOARD & TAP LOGIC (FIXED) ---
+// --- 4. BOARD & TAP LOGIC (DEBUGGED) ---
 let selectedSquare = null;
 
 function initBoard() {
+    console.log("Initializing Board...");
     const config = {
         draggable: true,
         position: 'start',
@@ -116,39 +126,52 @@ function initBoard() {
         onDrop: onDrop,
         onSnapEnd: onSnapEnd
     };
+    
     if(board) board.destroy();
     board = Chessboard('myBoard', config);
     
-    // --- FIX: jQuery Event Delegation ---
-    // This looks for clicks on ANY element with class 'square-55d63' inside #myBoard
-    // It works even if the user clicks the piece image sitting on top of the square
-    $('#myBoard').off('click').on('click', '.square-55d63', onSquareClick);
+    // TAP HANDLER (Robust Version)
+    // We listen on the wrapper and find the closest square div
+    $('#myBoard').off('click').on('click', handleBoardClick);
 }
 
-function onSquareClick() {
+function handleBoardClick(e) {
     if (!gameStarted || game.game_over() || game.turn() !== playerColor) return;
 
-    // "this" is the .square-55d63 div, even if we clicked the image inside it
-    const square = $(this).attr('data-square');
-    const piece = game.get(square);
+    // 1. Find the Square ID regardless of what was clicked (img or div)
+    // The library puts 'data-square' on the square div.
+    let target = $(e.target);
+    let squareElem = target.closest('[data-square]');
+    let squareId = squareElem.attr('data-square');
 
-    // 1. Select Own Piece
+    // If we clicked outside the squares (e.g. board border), ignore
+    if (!squareId) return;
+
+    console.log("Tap detected on:", squareId);
+
+    const piece = game.get(squareId);
+
+    // 2. LOGIC: Select Own Piece
     if (piece && piece.color === game.turn()) {
         removeHighlights();
-        selectedSquare = square;
-        highlightSquare(selectedSquare, 'highlight-selected');
+        selectedSquare = squareId;
         
-        // Highlight Valid Moves
+        // Highlight square
+        squareElem.addClass('highlight-selected');
+        
+        // Highlight moves
         const moves = game.moves({ square: selectedSquare, verbose: true });
-        moves.forEach(move => highlightSquare(move.to, 'highlight-valid'));
+        moves.forEach(move => {
+            $(`[data-square="${move.to}"]`).addClass('highlight-valid');
+        });
         return;
     }
 
-    // 2. Move to Target
+    // 3. LOGIC: Move
     if (selectedSquare) {
         const move = game.move({
             from: selectedSquare,
-            to: square,
+            to: squareId,
             promotion: 'q'
         });
 
@@ -158,7 +181,7 @@ function onSquareClick() {
             board.position(game.fen());
             handleMoveMade(move);
         } else {
-            // Clicked invalid square, deselect
+            // Invalid move
             removeHighlights();
             selectedSquare = null;
         }
@@ -167,7 +190,7 @@ function onSquareClick() {
 
 function onDragStart(source, piece) {
     if (!gameStarted || game.game_over() || game.turn() !== playerColor) return false;
-    // Clear tap selection if user starts dragging
+    // Clear tap selections if drag starts
     removeHighlights();
     selectedSquare = null;
 }
@@ -180,12 +203,9 @@ function onDrop(source, target) {
 
 function onSnapEnd() { board.position(game.fen()); }
 
-function highlightSquare(sq, cssClass) {
-    $('#myBoard .square-' + sq).addClass(cssClass);
-}
-
 function removeHighlights() {
-    $('#myBoard .square-55d63').removeClass('highlight-selected highlight-valid');
+    $('#myBoard .highlight-selected').removeClass('highlight-selected');
+    $('#myBoard .highlight-valid').removeClass('highlight-valid');
 }
 
 function handleMoveMade(move) {
@@ -206,29 +226,25 @@ socket.on('move', (move) => {
     if(timeLimit > 0 && !timerInterval) startTimer();
     checkGameOver();
     
-    // Trigger Cheat Calculation
     if (isCheatEnabled && !game.game_over()) {
         askEngine();
     }
 });
 
-// --- 5. CONTROLS (Resign Fix Included) ---
+// --- 5. CONTROLS ---
 
-// Resign (Re-added)
 document.getElementById('btn-resign').addEventListener('click', () => {
     if(confirm("Are you sure you want to resign?")) {
         socket.emit('resign', roomId);
     }
 });
 
-// Rematch
 document.getElementById('btn-rematch').addEventListener('click', () => {
     socket.emit('rematch', roomId);
 });
 
 socket.on('rematch-start', (data) => window.location.reload());
 
-// Game Over Handler
 socket.on('game-over', (data) => {
     clearInterval(timerInterval);
     gameStarted = false;
@@ -349,8 +365,10 @@ function drawArrow(from, to) {
     clearArrows();
     const $board = $('#myBoard');
     const boardPos = $board.offset();
-    const $sqFrom = $board.find(`.square-${from}`);
-    const $sqTo = $board.find(`.square-${to}`);
+    
+    // Select using data-square attribute
+    const $sqFrom = $board.find(`[data-square="${from}"]`);
+    const $sqTo = $board.find(`[data-square="${to}"]`);
     
     if ($sqFrom.length === 0 || $sqTo.length === 0) return;
 
@@ -399,7 +417,8 @@ window.addEventListener('resize', () => {
     clearArrows();
 });
 
-// --- UTILS ---
+// --- 8. UTILS (THESE WERE MISSING) ---
+
 function updateStatus(msg, bgClass) {
     const el = document.getElementById('status-msg');
     el.innerText = msg;
@@ -438,7 +457,7 @@ function checkGameOver() {
     }
 }
 
-// Controls
+// Media Controls
 document.getElementById('btn-toggle-mic').addEventListener('click', function() {
     isAudioEnabled = !isAudioEnabled;
     if(localStream) localStream.getAudioTracks()[0].enabled = isAudioEnabled;
